@@ -2,6 +2,7 @@
 
 ## Features
 * Maintained arc consistency
+* N-ary constraints support
 * Get all, or a given amount of solutions
 
 
