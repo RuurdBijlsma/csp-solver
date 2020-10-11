@@ -84,8 +84,12 @@ const backtrack = (csp, _assigned, unassigned) => {
     for (let value of values) {
         assigned[nextKey] = [value]; // Assign a value to a variable.
         const consistent = enforceConsistency(assigned, unassigned, csp.constraints);
-        if (consistent === 'inconsistent')
+
+        if (consistent === 'inconsistent') {
+            // console.log(`using ${value} for ${nextKey} is inconsistent`);
             continue;
+        }
+
         const newUnassigned = {},
             newAssigned = {};
         for (let key in consistent) {
@@ -96,11 +100,11 @@ const backtrack = (csp, _assigned, unassigned) => {
         }
 
         csp.stepCount++;
-        console.log('Step:', csp.stepCount, 'Backtrack:', csp.level);
+        // console.log('Step:', csp.stepCount, 'Backtrack:', csp.level);
         if (csp.recordSteps)
             csp.steps.push({assigned: newAssigned, unassigned: newUnassigned, csp});
-
         csp.level++;
+
         const result = backtrack(csp, newAssigned, newUnassigned);
         if (result !== false) {
             if (csp.solutions.length >= csp.solutionCount) {
@@ -118,37 +122,39 @@ const enforceConsistency = (assigned, unassigned, constraints) => {
     // Create copy of all variables
     let variables = partialAssignment(assigned, unassigned);
 
+    //handle unary constraints here
+    for (let constraint of constraints.filter(c => c.variables.length === 1)) {
+        let varKey = constraint.variables[0];
+        variables[varKey] = variables[varKey].filter(v => constraint.isSatisfied(v));
+        if (variables[varKey].length === 0)
+            return 'inconsistent';
+    }
+
     // Create arcs
     let arcs = [];
-    for (let constraint of constraints)
+    for (let constraint of constraints.filter(c => c.variables.length !== 1))
         for (let variableKey of constraint.variables)
             arcs.push([variableKey, constraint]);
     let visitedArcs = [];
 
     // Function to remove inconsistent values from an arc
     const removeInconsistentValues = ([vKey, constraint], variables) => {
-        if (constraint.variables.length === 1) { // Unary constraints
+        if (constraint.variables.length === 2) { // Binary constraints (most common)
 
-            const tailValues = variables[vKey];
-            const validTailValues = variables[vKey].filter(v => constraint.isSatisfied(v));
-            const domainChanged = tailValues.length !== validTailValues.length;
-            variables[vKey] = validTailValues;
-
-            // TODO this is weird but fast
-            return domainChanged;
-            return variables[vKey].length === 0 ? 'inconsistent' : domainChanged ? 'change' : 'no-change';
-
-        } else if (constraint.variables.length === 2) { // Binary constraints (most common)
-
-            const otherValues = variables[constraint.variables.filter(v => v !== vKey)[0]],
+            let varIndex = constraint.variables.indexOf(vKey);
+            let otherVariableKey = constraint.variables[1 - varIndex];
+            const otherValues = variables[otherVariableKey],
                 varValues = variables[vKey];
-            const validTailValues = varValues.filter(t => otherValues.some(h => constraint.isSatisfied(h, t)));
-            const domainChanged = varValues.length !== validTailValues.length;
-            variables[vKey] = validTailValues;
+            let validValues;
+            if (varIndex === 0)
+                validValues = varValues.filter(t => otherValues.some(h => constraint.isSatisfied(t, h)));
+            else
+                validValues = varValues.filter(t => otherValues.some(h => constraint.isSatisfied(h, t)));
 
-            // TODO this is weird but fast
+            const domainChanged = varValues.length !== validValues.length;
+            variables[vKey] = validValues;
+
             return domainChanged;
-            return variables[vKey].length === 0 ? 'inconsistent' : domainChanged ? 'change' : 'no-change';
         }
         // N-ary constraints
 
@@ -186,17 +192,17 @@ const enforceConsistency = (assigned, unassigned, constraints) => {
 
         // if (domainChanged)
         //     console.log("Updated domain for", vKey, '->', variables[vKey]);
-        return variables[vKey].length === 0 ? 'inconsistent' : domainChanged ? 'change' : 'no-change';
+        return domainChanged;
     }
 
     while (arcs.length > 0) {
         let arc = arcs.pop();
         visitedArcs.push(arc);
 
-        let domainChanged = removeInconsistentValues(arc, variables);
-        if (domainChanged === 'inconsistent')
-            return 'inconsistent';
-        if (domainChanged === 'change') {
+        if (removeInconsistentValues(arc, variables)) {
+            if (variables[arc[0]].length === 0)
+                return 'inconsistent';
+
             // If the domain of this arc has changed
             // Add any visitedArcs back that should be revisited due to this change
             for (let j = visitedArcs.length - 1; j >= 0; j--) {

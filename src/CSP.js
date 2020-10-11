@@ -34,4 +34,9 @@ export default class CSP {
         if (options.mrv !== undefined)
             this.mrv = options.mrv;
     }
+
+    copy() {
+        let copy = JSON.parse(JSON.stringify(this));
+        return new CSP(copy.variables, this.constraints, {...copy});
+    }
 }
