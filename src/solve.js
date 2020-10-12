@@ -1,94 +1,84 @@
-//TODO
-//Change enforce consistency function to AC-4 to improve performance
-//TODO
-//Support for multiple solutions? How do we do this?
-//Don't return on success, save that solution to a global array (csp.solutions = [])
-//try memoization (in enforceconsistency maybe?)
-
-export default function solve(
-    {
-        variables,
-        constraints,
-        recordSteps = false,
-        solutions = 1,
-        mrv = true,
-        degree = false,
-        lcv = false,
-    }
-) {
+export default function solve({
+                                  variables,
+                                  constraints,
+                                  solutions = 1,
+                                  mrv = true,
+                                  degree = false,
+                                  lcv = false,
+                              }) {
     let startTime = performance.now();
     if (solutions === 'all')
         solutions = Infinity;
     let csp = {
         constraints,
-        solutions: [],
         steps: [],
-        stepCount: 0,
-        recordSteps,
+        solutions: [],
         solutionCount: solutions,
         mrv,
         degree,
         lcv,
-        level: 0,
+        binary: true,
     }
 
+    // Find amount of variables connected to each variable for use in degree heuristic
     if (csp.degree) {
         csp.variablesInfo = {};
-        for (let varKey in variables) {
+        for (let varKey in variables)
             csp.variablesInfo[varKey] = {
                 connectedVariables: new Set(),
             }
-        }
-        for (let constraint of constraints) {
+        for (let constraint of constraints)
             for (let varKey of constraint.variables) {
                 constraint.variables
                     .filter(v => v !== varKey)
                     .forEach(v => csp.variablesInfo[varKey].connectedVariables.add(v))
             }
-        }
-        for (let varKey in csp.variablesInfo) {
+        for (let varKey in csp.variablesInfo)
             csp.variablesInfo[varKey].connectedVariables = Array.from(csp.variablesInfo[varKey].connectedVariables);
-        }
     }
 
-    backtrack(csp, {}, variables);
+    // Determine if entire CSP only uses binary constraints
+    for (let constraint of constraints)
+        if (constraint.variables.length > 2) {
+            csp.binary = false;
+            break;
+        }
 
-    let backtrackDone = performance.now();
+    backtrack({}, variables, csp);
+
     let result = {
         solutions: csp.solutions,
-        stepCount: csp.stepCount,
-        time: backtrackDone - startTime
+        time: performance.now() - startTime,
+        steps: csp.steps,
     };
-    if (csp.recordSteps)
-        result.steps = csp.steps;
 
     console.log(result);
     return result;
 }
 
-// Backtracking search.
-const backtrack = (csp, _assigned, unassigned) => {
+function backtrack(_assigned, unassigned, csp) {
+    // Backtracking search.
+
+    // Copying assigned in necessary because we modify it. Without copying
+    // the object over, modifying assigned would also change values for old
+    // assigned objects (which are used in callbacks).
     const assigned = {..._assigned};
 
-    // Base case.
-    if (Object.keys(unassigned).length === 0) {
+    if (finished(unassigned)) {
         csp.solutions.push(assignedToResult(assigned));
-        csp.level--;
         return true;
     }
 
-    const nextKey = selectVariableKey(unassigned, csp);
-    const values = orderValues(nextKey, assigned, unassigned, csp);
+    const nextKey = selectVariableKey(unassigned, csp),
+        values = orderValues(nextKey, assigned, unassigned, csp);
     delete unassigned[nextKey];
 
     for (let value of values) {
         assigned[nextKey] = [value]; // Assign a value to a variable.
-        const consistent = enforceConsistency(assigned, unassigned, csp.constraints);
 
-        if (consistent === 'inconsistent') {
-            // console.log(`using ${value} for ${nextKey} is inconsistent`);
+        const consistent = enforceConsistency(assigned, unassigned, csp);
+        if (consistent === false)
             continue;
-        }
 
         const newUnassigned = {},
             newAssigned = {};
@@ -99,43 +89,104 @@ const backtrack = (csp, _assigned, unassigned) => {
                 newUnassigned[key] = [...consistent[key]];
         }
 
-        csp.stepCount++;
-        // console.log('Step:', csp.stepCount, 'Backtrack:', csp.level);
-        if (csp.recordSteps)
-            csp.steps.push({assigned: newAssigned, unassigned: newUnassigned, csp});
-        csp.level++;
+        csp.steps.push({assigned: newAssigned, unassigned: newUnassigned, csp});
 
-        const result = backtrack(csp, newAssigned, newUnassigned);
-        if (result !== false) {
-            if (csp.solutions.length >= csp.solutionCount) {
-                csp.level--;
-                return true;
-            }
-        }
+        const result = backtrack(newAssigned, newUnassigned, csp);
+        if (result !== false && csp.solutions.length >= csp.solutionCount)
+            return result;
     }
 
-    csp.level--;
     return false;
 }
 
-const enforceConsistency = (assigned, unassigned, constraints) => {
+function finished(unassigned) {
+    // Checks if there are no more variables to assign.
+    return Object.keys(unassigned).length === 0;
+}
+
+function partialAssignment(assigned, unassigned) {
+    // Combine unassigned and assigned for use in enforceConsistency.
+    const partial = {};
+    for (let key in unassigned)
+        partial[key] = [...unassigned[key]];
+    for (let key in assigned)
+        partial[key] = [...assigned[key]];
+    return partial;
+}
+
+function enforceConsistency(assigned, unassigned, csp) {
+    if (!csp.binary)
+        return generalizedConsistency(assigned, unassigned, csp.constraints);
+    // Enforces arc consistency by removing inconsistent values from
+    // every binary constraint's tail node.
+
+    function removeInconsistentValues(head, tail, constraint, variables) {
+        // Removes inconsistent values from the tail node. A value is
+        // inconsistent when if the `tail` is assigned that value, there are
+        // no values in `head`'s domain that satisfies the constraint.
+        const headValues = variables[head],
+            tailValues = variables[tail];
+        const validTailValues = tailValues.filter(t => headValues.some(h => constraint(h, t)));
+        const removed = tailValues.length !== validTailValues.length;
+        variables[tail] = validTailValues;
+        return removed;
+    }
+
+    function incomingConstraints(node) {
+        // Returns all the constraints where `node` is the head node.
+        return csp.constraints.filter(c => c.variables[0] === node);
+    }
+
+    let variables = partialAssignment(assigned, unassigned);
+    let queue = [];
+
+    for (let constraint of csp.constraints) {
+        // Handle all unary constraints here
+        if (constraint.variables.length === 1) {
+            let varKey = constraint.variables[0];
+            variables[varKey] = variables[varKey].filter(v => constraint.isSatisfied(v));
+            if (variables[varKey].length === 0)
+                return false;
+        } else {
+            queue.push(constraint);
+        }
+    }
+
+    while (queue.length) {
+        const c = queue.shift(),
+            head = c.variables[0],
+            tail = c.variables[1];
+        if (removeInconsistentValues(head, tail, c.isSatisfied, variables)) {
+            if (variables[tail].length === 0)
+                return false;
+            // If the domain of the tail has changed, incoming constraints
+            // to the tail must be rechecked.
+            queue = queue.concat(incomingConstraints(tail));
+        }
+    }
+    return variables;
+}
+
+// Enforce consistency with support for >2 arity constraints
+function generalizedConsistency(assigned, unassigned, constraints) {
     // Create copy of all variables
     let variables = partialAssignment(assigned, unassigned);
 
-    //handle unary constraints here
-    for (let constraint of constraints.filter(c => c.variables.length === 1)) {
-        let varKey = constraint.variables[0];
-        variables[varKey] = variables[varKey].filter(v => constraint.isSatisfied(v));
-        if (variables[varKey].length === 0)
-            return 'inconsistent';
-    }
-
     // Create arcs
     let arcs = [];
-    for (let constraint of constraints.filter(c => c.variables.length !== 1))
-        for (let variableKey of constraint.variables)
-            arcs.push([variableKey, constraint]);
     let visitedArcs = [];
+    //handle unary constraints here
+    for (let constraint of constraints) {
+        if (constraint.variables.length === 1) {
+            let varKey = constraint.variables[0];
+            variables[varKey] = variables[varKey].filter(v => constraint.isSatisfied(v));
+            if (variables[varKey].length === 0)
+                return false;
+        } else {
+            for (let variableKey of constraint.variables)
+                arcs.push([variableKey, constraint]);
+        }
+    }
 
     // Function to remove inconsistent values from an arc
     const removeInconsistentValues = ([vKey, constraint], variables) => {
@@ -156,8 +207,8 @@ const enforceConsistency = (assigned, unassigned, constraints) => {
 
             return domainChanged;
         }
-        // N-ary constraints
 
+        // N-ary constraints
         let varIndex = constraint.variables.indexOf(vKey);
         let otherVariables = constraint.variables.filter(v => v !== vKey);
         let otherDomains = otherVariables.map(k => variables[k]);
@@ -201,16 +252,19 @@ const enforceConsistency = (assigned, unassigned, constraints) => {
 
         if (removeInconsistentValues(arc, variables)) {
             if (variables[arc[0]].length === 0)
-                return 'inconsistent';
+                return false;
 
             // If the domain of this arc has changed
             // Add any visitedArcs back that should be revisited due to this change
             for (let j = visitedArcs.length - 1; j >= 0; j--) {
                 let visitedArc = visitedArcs[j];
-                let [, visitedConstraint] = visitedArc;
+                let [visitedVar, visitedConstraint] = visitedArc;
                 // revisit an arc if one of the variables of the constraint in that arc has been updated
                 // Except current constraint arcs
-                if (visitedConstraint !== arc[1] && arc[1].variables.includes(arc[0])) {
+                if (arc[1] !== visitedConstraint &&
+                    arc[0] !== visitedVar &&
+                    visitedConstraint.hasVariable(arc[0])
+                ) {
                     visitedArcs.splice(j, 1);
                     arcs.push(visitedArc);
                 }
@@ -221,34 +275,9 @@ const enforceConsistency = (assigned, unassigned, constraints) => {
     return variables;
 }
 
-const partialAssignment = (assigned, unassigned) => {
-    // console.log('partial', assigned, unassigned)
-    // Combine unassigned and assigned for use in enforceConsistency.
-    const partial = {};
-    for (let key in unassigned)
-        partial[key] = [...unassigned[key]];
-
-    for (let key in assigned)
-        partial[key] = [...assigned[key]];
-
-    return partial;
-}
-
-const cartesian = (...a) => a.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())));
-
-const assignedToResult = assigned => {
-    let result = {};
-    for (let key in assigned)
-        result[key] = [...assigned[key]][0];
-    return result;
-}
-
-
-// LCV: Least Constraining Values
-const orderValues = (nextKey, assigned, unassigned, csp) => {
+function orderValues(nextKey, assigned, unassigned, csp) {
     if (!csp.lcv)
         return unassigned[nextKey];
-
     // Orders the values of an unassigned variable according to the
     // Least Constraining Values heuristic. Perform arc consistency
     // on each possible value, and order variables according to the
@@ -257,7 +286,7 @@ const orderValues = (nextKey, assigned, unassigned, csp) => {
     // by keeping future options open.
 
     const countValues = vars => {
-        if (vars === 'inconsistent')
+        if (vars === false)
             return 0;
         let sum = 0;
         for (let key in vars)
@@ -267,7 +296,7 @@ const orderValues = (nextKey, assigned, unassigned, csp) => {
 
     const valuesEliminated = val => {
         assigned[nextKey] = [val];
-        const newLength = countValues(enforceConsistency(assigned, unassigned, csp.constraints));
+        const newLength = countValues(enforceConsistency(assigned, unassigned, csp));
         delete assigned[nextKey];
         return newLength;
     };
@@ -275,12 +304,28 @@ const orderValues = (nextKey, assigned, unassigned, csp) => {
     // Cache valuesEliminated to be used in sort.
     const cache = {},
         values = unassigned[nextKey];
-    values.forEach(val => cache[val] = valuesEliminated(val))
+    values.forEach(val => {
+        cache[val] = valuesEliminated(val);
+    });
     // Descending order based on the number of domain values remaining.
     values.sort((a, b) => cache[b] - cache[a]);
     return values;
 }
 
+// Returns cartesian product of n arrays, used when enforcing consistency on n-ary constraints
+function cartesian(...a) {
+    return a.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())));
+}
+
+// Turn assigned map to more readable result object
+function assignedToResult(assigned) {
+    let result = {};
+    for (let key in assigned)
+        result[key] = [...assigned[key]][0];
+    return result;
+}
+
+// Degree Heuristic
 const degreeHeuristic = (keys, unassigned, csp) => {
     if (!csp.degree)
         return keys[keys.length - 1];
@@ -293,7 +338,6 @@ const degreeHeuristic = (keys, unassigned, csp) => {
             bestKey = key;
         }
     }
-    console.log(bestKey)
     return bestKey;
 }
 
@@ -317,6 +361,6 @@ const selectVariableKey = (unassigned, csp) => {
             minKeys.push(key);
         }
     }
-    // console.log(minKeys);
+
     return degreeHeuristic(minKeys, unassigned, csp);
 }

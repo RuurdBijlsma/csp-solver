@@ -23,20 +23,10 @@ export default class CSP {
 
         this.solutions = [];
         this.steps = [];
-        this.stepCount = 0;
 
-        if (options.recordSteps !== undefined)
-            this.recordSteps = options.recordSteps;
-        if (options.solutions !== undefined)
-            this.solutions = options.solutions;
-        if (options.lcv !== undefined)
-            this.lcv = options.lcv;
-        if (options.mrv !== undefined)
-            this.mrv = options.mrv;
-    }
-
-    copy() {
-        let copy = JSON.parse(JSON.stringify(this));
-        return new CSP(copy.variables, this.constraints, {...copy});
+        let optionKeys = ['recordSteps', 'solutions', 'lcv', 'mrv', 'degree'];
+        for (let key of optionKeys)
+            if (options[key] !== undefined)
+                this[key] = options[key];
     }
 }

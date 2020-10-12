@@ -1,11 +1,11 @@
-import solve from "./solver";
+import solve from "./solve";
 import Constraint from "./Constraint";
-import ConstraintFunction from "./ConstraintFunction";
 import CSP from './CSP'
+import ConstraintFunction from './ConstraintFunction'
 
 export {
     solve,
-    CSP,
     Constraint,
     ConstraintFunction,
+    CSP,
 }
