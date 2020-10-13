@@ -1,6 +1,7 @@
 {
   "name": "csp-solver",
   "version": "0.1.5",
+  "type": "module",
   "description": "Constraint satisfaction problem solver",
   "main": "src/index.js",
   "scripts": {
