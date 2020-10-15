@@ -122,7 +122,7 @@ function enforceConsistency(assigned, unassigned, csp) {
     // Enforces arc consistency by removing inconsistent values from
     // every binary constraint's tail node.
 
-    function removeInconsistentValues(head, tail, constraint, variables) {
+    const removeInconsistentValues = (head, tail, constraint, variables) => {
         // Removes inconsistent values from the tail node. A value is
         // inconsistent when if the `tail` is assigned that value, there are
         // no values in `head`'s domain that satisfies the constraint.
@@ -132,12 +132,12 @@ function enforceConsistency(assigned, unassigned, csp) {
         const removed = tailValues.length !== validTailValues.length;
         variables[tail] = validTailValues;
         return removed;
-    }
+    };
 
-    function incomingConstraints(node) {
-        // Returns all the constraints where `node` is the head node.
-        return csp.constraints.filter(c => c.variables[0] === node);
-    }
+
+    let binaryConstraints = csp.constraints.filter(c => c.variables.length === 2);
+    // Returns all the constraints where `node` is the head node.
+    const incomingConstraints = node => binaryConstraints.filter(c => c.variables[0] === node);
 
     let variables = partialAssignment(assigned, unassigned);
     let queue = [];
