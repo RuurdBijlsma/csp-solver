@@ -48,14 +48,11 @@ export default function solve({
 
     backtrack({}, variables, csp);
 
-    let result = {
+    return {
         solutions: csp.solutions,
         time: performance.now() - startTime,
         steps: csp.steps,
     };
-
-    console.log(result);
-    return result;
 }
 
 function backtrack(_assigned, unassigned, csp) {
