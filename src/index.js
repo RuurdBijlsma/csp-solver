@@ -3,7 +3,7 @@ import Constraint from "./Constraint";
 import CSP from './CSP'
 import ConstraintFunction from './ConstraintFunction'
 
-export default {
+export {
     solve,
     Constraint,
     ConstraintFunction,
