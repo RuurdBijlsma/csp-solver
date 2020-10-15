@@ -51,4 +51,22 @@ export default class Constraint {
     static allDifferent(variables) {
         return Constraint.all(variables, ConstraintFunction.notEquals)
     }
+
+    // Global constraint
+    // Applies to all variables
+    // Example: knight move restriction across the board
+    // getNeighbours is then a function that takes a key ([1,2])
+    // and outputs 8 keys corresponding to the knight move neighbours
+    global(variables, getNeighbours, constraint = Constraint.allDifferent) {
+        let constraints = [];
+        for (let key in variables) {
+            constraints.push(...
+                getNeighbours(key)
+                    .map(k => k)
+                    .filter(k => variables.hasOwnProperty(k))
+                    .flatMap(k => constraint([key, k.toString()]))
+            );
+        }
+        return constraints;
+    }
 }
