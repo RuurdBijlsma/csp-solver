@@ -1,4 +1,8 @@
-import {performance} from "perf_hooks";
+const performance = window.performance ?? {
+    now() {
+        return +new Date
+    }
+}
 
 export default function solve({
                                   variables,
