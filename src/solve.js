@@ -1,8 +1,8 @@
-const performance = window.performance ?? {
+const performance = typeof window === 'undefined' ? {
     now() {
         return +new Date
     }
-}
+} : window.performance;
 
 export default function solve({
                                   variables,
