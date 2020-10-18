@@ -57,7 +57,7 @@ export default class Constraint {
     // Example: knight move restriction across the board
     // getNeighbours is then a function that takes a key ([1,2])
     // and outputs 8 keys corresponding to the knight move neighbours
-    global(variables, getNeighbours, constraint = Constraint.allDifferent) {
+    static global(variables, getNeighbours, constraint = Constraint.allDifferent) {
         let constraints = [];
         for (let key in variables) {
             constraints.push(...
