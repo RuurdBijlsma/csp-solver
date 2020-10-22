@@ -1,6 +1,7 @@
 import {Constraint, solve} from "../index";
 
-export default function solveSudoku() {
+export function getSudoku() {
+
     const SIZE = 9,
         BLOCK_SIZE = Math.sqrt(SIZE) | 0,
         domain = [...Array(SIZE)].map((_, i) => i + 1),
@@ -116,7 +117,13 @@ export default function solveSudoku() {
         }
     }
 
-    const result = solve({
+    return {variables, constraints};
+}
+
+export function solveSudoku() {
+    let {variables, constraints} = getSudoku();
+
+    return solve({
         variables,
         constraints,
         solutions: 1,
@@ -125,19 +132,4 @@ export default function solveSudoku() {
         lcv: false,
         recordSteps: true
     });
-
-    let grid = [];
-    for (let x = 0; x < SIZE; x++) {
-        let row = [];
-        for (let y = 0; y < SIZE; y++)
-            row.push(0);
-        grid.push(row);
-    }
-
-    for (let key in result.solutions[0]) {
-        let [x, y] = key.split(',');
-        grid[x - 1][y - 1] = result.solutions[0][key];
-    }
-
-    return result;
 }

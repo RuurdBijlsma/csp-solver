@@ -4,15 +4,14 @@ const performance = typeof window === 'undefined' ? {
     }
 } : window.performance;
 
-export default function solve({
-                                  variables,
-                                  constraints,
-                                  solutions = 1,
-                                  mrv = true,
-                                  degree = false,
-                                  lcv = false,
-                              }) {
-    let startTime = performance.now();
+export function getCSP({
+                           variables,
+                           constraints,
+                           solutions = 1,
+                           mrv = true,
+                           degree = false,
+                           lcv = false,
+                       }) {
     if (solutions === 'all')
         solutions = Infinity;
     let csp = {
@@ -30,9 +29,7 @@ export default function solve({
     if (csp.degree) {
         csp.variablesInfo = {};
         for (let varKey in variables)
-            csp.variablesInfo[varKey] = {
-                connectedVariables: new Set(),
-            }
+            csp.variablesInfo[varKey] = {connectedVariables: new Set(),}
         for (let constraint of constraints)
             for (let varKey of constraint.variables) {
                 constraint.variables
@@ -50,6 +47,21 @@ export default function solve({
             break;
         }
 
+
+    return csp;
+}
+
+export function solve({
+                          variables,
+                          constraints,
+                          solutions = 1,
+                          mrv = true,
+                          degree = false,
+                          lcv = false,
+                      }) {
+    let startTime = performance.now();
+
+    let csp = getCSP({variables, constraints, solutions, mrv, degree, lcv})
     backtrack({}, variables, csp);
 
     return {
@@ -117,7 +129,7 @@ function partialAssignment(assigned, unassigned) {
     return partial;
 }
 
-function enforceConsistency(assigned, unassigned, csp) {
+export function enforceConsistency(assigned, unassigned, csp) {
     if (!csp.binary)
         return generalizedConsistency(assigned, unassigned, csp.constraints);
     // Enforces arc consistency by removing inconsistent values from
