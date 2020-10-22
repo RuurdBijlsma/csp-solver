@@ -117,6 +117,8 @@ export function getSudoku() {
         }
     }
 
+    constraints.push(...Constraint.consecutive([[1, 1], [1, 2], [1, 3]]));
+
     return {variables, constraints};
 }
 

@@ -52,6 +52,14 @@ export default class Constraint {
         return Constraint.all(variables, ConstraintFunction.notEquals)
     }
 
+    static consecutive(variables) {
+        return Constraint.series(variables, ConstraintFunction.consecutive, ConstraintFunction.consecutive);
+    }
+
+    static nonConsecutive(variables) {
+        return Constraint.series(variables, ConstraintFunction.nonConsecutive, ConstraintFunction.nonConsecutive);
+    }
+
     // Global constraint
     // Applies to all variables
     // Example: knight move restriction across the board

@@ -22,4 +22,12 @@ export default class ConstraintFunction {
     static equals(a, b) {
         return a === b;
     }
+
+    static consecutive(a, b) {
+        return a + 1 === b || a - 1 === b;
+    }
+
+    static nonConsecutive(a, b) {
+        return a + 1 !== b && a - 1 !== b;
+    }
 }
