@@ -44,5 +44,4 @@ console.log(result)
 ```
 
 ## Demos
-Sudoku and a cryptarithmetic puzzle csp are implemented in a separate repository. 
-https://github.com/RuurdBijlsma/constraint-solver-demos
+Example CSPs are located in src/test/
